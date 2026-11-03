@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Cyber Defender</title>
+<style>
+:root{--bg:#0a0f24;--panel:#121a38;--ink:#e8eefc;--dim:#7f8db8;--cyan:#4de2ff;--amber:#ffb340;--red:#ff4d6d;--violet:#a58bff;--mint:#5dffb0;--gold:#ffd54d}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#060919;color:var(--ink);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none}
+body{display:flex;align-items:center;justify-content:center}
+#game{width:min(100vw,calc(100vh - 190px))}
+#hud{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;padding:8px 12px;background:var(--panel);border-bottom:2px solid #1f2b57}
+.row{display:flex;justify-content:space-between;align-items:center;font-size:clamp(11px,2.6vw,14px);color:var(--dim)}
+.row b{color:var(--ink);font-variant-numeric:tabular-nums}
+.bar{height:10px;background:#0a0f24;border:1px solid #2a3a73;border-radius:3px;overflow:hidden;margin-top:3px}
+.bar i{display:block;height:100%;width:100%;transition:width .15s linear}
+#hpFill{background:var(--mint)}#updFill{background:var(--cyan)}
+#updBox.low .bar{border-color:var(--red);animation:pulse .6s infinite alternate}
+#updBox.low #updFill{background:var(--red)}
+@keyframes pulse{to{box-shadow:0 0 8px var(--red)}}
+#coinsB{color:var(--gold)}
+.mini{font:inherit;font-size:12px;font-weight:700;padding:2px 8px;border:1px solid var(--gold);color:var(--gold);background:transparent;border-radius:3px;cursor:pointer}
+#stage{position:relative}
+canvas{display:block;width:100%;height:auto;aspect-ratio:1/1;background:var(--bg);touch-action:none;cursor:crosshair}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;background:rgba(6,9,25,.9)}
+.overlay.hidden{display:none}
+h1{font-size:clamp(28px,7vw,42px);text-shadow:3px 0 var(--red),-3px 0 var(--cyan)}
+.overlay p{max-width:42ch;line-height:1.45;color:var(--dim);font-size:clamp(12px,3vw,15px)}
+.overlay p b{color:var(--ink)}
+button.big{font:inherit;font-weight:700;font-size:18px;padding:11px 26px;border:2px solid var(--cyan);background:transparent;color:var(--cyan);border-radius:4px;cursor:pointer}
+button.big:hover,button.big:focus-visible{background:var(--cyan);color:var(--bg);outline:none}
+.stat{font-size:19px}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--dim)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;background:var(--c)}
+#items{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:520px}
+.item{display:flex;flex-direction:column;gap:2px;text-align:left;padding:8px 10px;border:1px solid #2a3a73;background:var(--panel);color:var(--ink);border-radius:4px;font:inherit;cursor:pointer}
+.item small{color:var(--dim);font-size:12px}
+.item .cost{color:var(--gold);font-weight:700}
+.item:disabled{opacity:.4;cursor:not-allowed}
+.item:not(:disabled):hover{border-color:var(--gold)}
+#log{height:76px;overflow:hidden;padding:6px 10px;background:#060919;border-top:2px solid #1f2b57;font:12px/1.35 "Courier New",monospace;color:var(--mint)}
+#log .w{color:var(--amber)}#log .a{color:var(--red)}#log .i{color:var(--dim)}#log .o{color:var(--mint)}
+#tip{max-width:44ch;font-size:13px;color:var(--cyan)}
+#report{max-width:44ch;font-size:13px;line-height:1.5;color:var(--dim)}
+#stage::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px)}
+#stage.glitch canvas{animation:glitch .25s steps(2) infinite}
+@keyframes glitch{0%{transform:translateX(0);filter:none}50%{transform:translateX(-3px);filter:hue-rotate(40deg) saturate(1.6)}100%{transform:translateX(2px)}}
+@media (prefers-reduced-motion:reduce){#updBox.low .bar,#stage.glitch canvas{animation:none}}
+</style>
+</head>
+<body>
+  <a href="../" style="position:fixed;top:10px;left:10px;color:#54e6d1;font:14px Arial;">← Arcade</a>
+<div id="game">
+  <div id="hud">
+    <div>
+      <div class="row"><span>Level <b id="lvl">1</b></span><span>Score <b id="score">0</b></span></div>
+      <div class="row"><span>Threats cleared</span><b id="kills">0/12</b></div>
+      <div class="row"><span>Coins <b id="coinsB">0</b></span><button class="mini" id="shopBtn">Upgrades (B)</button></div>
+    </div>
+    <div>
+      <div class="row"><span>System integrity</span><b id="hpTxt">100%</b></div>
+      <div class="bar"><i id="hpFill"></i></div>
+      <div id="updBox" style="margin-top:6px">
+        <div class="row"><span>Security update</span><b id="updTxt">100%</b></div>
+        <div class="bar"><i id="updFill"></i></div>
+      </div>
+    </div>
+  </div>
+  <div id="stage">
+    <canvas id="c"></canvas>
+
+    <div id="start" class="overlay">
+      <h1>Cyber Defender</h1>
+      <p>You are the core. Threats close in from every side. <b>Move with WASD or the arrow keys, aim with the mouse and click to shoot.</b> Each shot kicks the turret back.</p>
+      <div class="legend"><span style="--c:var(--amber)">Virus</span><span style="--c:var(--violet)">Malware</span><span style="--c:var(--red)">Hacker</span></div>
+      <p>Defeated threats drop <b>coins</b>. Spend them on upgrades between levels. The security update bar keeps draining and weakens your gun and defenses: <b>shoot the cyan update packs</b> to recharge it. But beware of <b>phishing</b>: fake packs carry a misspelled label.</p>
+      <button class="big" id="startBtn">Start defense</button>
+    </div>
+
+    <div id="shop" class="overlay hidden">
+      <h1 id="shopTitle">Upgrades</h1>
+      <div class="stat">Coins <b id="shopCoins" style="color:var(--gold)">0</b></div>
+      <p id="tip"></p>
+      <div id="items"></div>
+      <button class="big" id="goBtn">Continue</button>
+    </div>
+
+    <div id="over" class="overlay hidden">
+      <h1>System hacked</h1>
+      <div class="stat">Level <b id="oLvl">1</b> &nbsp;|&nbsp; Score <b id="oScore">0</b></div>
+      <div class="stat" style="color:var(--dim)">Best score <b id="oBest" style="color:var(--ink)">0</b></div>
+      <p id="report"></p>
+      <button class="big" id="againBtn">Restart system</button>
+    </div>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script>
+/* ============ YOUR PIXEL ART GOES HERE ============
+   Put a file path ('art/player.png') or a base64 data URI in any slot.
+   Empty slots fall back to the built-in vector shapes.
+   Player sprite should point UP; it is rotated to follow your aim. */
+const ART = { player:'', virus:'', malware:'', hacker:'', ransom:'', coin:'', pack:'', bg:'' };
+const SIZE = { player:56, virus:34, malware:40, hacker:48, ransom:44, coin:16, pack:30 };   // on-screen pixels
+
+(() => {
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const W = 640, H = 640, CX = 320, CY = 320; cv.width = W; cv.height = H;
+  const $ = id => document.getElementById(id);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const COL = { cyan:'#4de2ff', amber:'#ffb340', red:'#ff4d6d', violet:'#a58bff', mint:'#5dffb0', ink:'#e8eefc', gold:'#ffd54d' };
+
+  const NAME = { virus:'virus.exe', malware:'malware.dll', hacker:'remote intruder', ransom:'ransomware.lock' };
+  const SEEN = { virus:'[INFO] virus.exe detected', malware:'[WARN] malware.dll payload detected', hacker:'[ALERT] remote intruder connected', ransom:'[ALERT] ransomware.lock: shop encrypted' };
+  const FAKE = ['UPDAET','UPDTE','UDPATE'];
+  const TIPS = ['Never click unverified update links.','Keep your software patched.','Turn on two-factor authentication.','Back up your data regularly.','Check the sender before opening attachments.'];
+  const logEl = $('log');
+  function log(msg, cls) { const d = document.createElement('div'), t = Math.floor(S ? S.t : 0);
+    d.textContent = '[' + String(Math.floor(t/60)).padStart(2,'0') + ':' + String(t%60).padStart(2,'0') + '] ' + msg; if (cls) d.className = cls;
+    logEl.appendChild(d); while (logEl.children.length > 4) logEl.removeChild(logEl.firstChild); }
+  const locked = () => S.e.some(e => e.type === 'ransom');
+
+  /* sprite loader */
+  const IMG = {};
+  for (const k in ART) if (ART[k]) { const i = new Image(); i.onload = () => IMG[k] = i; i.src = ART[k]; }
+  function spr(k, x, y, rot = 0, flash = false) {
+    const i = IMG[k]; if (!i) return false;
+    const s = SIZE[k]; ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    ctx.imageSmoothingEnabled = false;
+    if (flash) ctx.filter = 'brightness(3)';
+    ctx.drawImage(i, -s/2, -s/2, s, s); ctx.restore(); return true;
+  }
+
+  let best = 0; try { best = +localStorage.getItem('cyberDefenderBest') || 0; } catch (e) {}
+  let S = null, running = false, last = 0;
+
+  const need = () => 8 + S.level * 4;
+  const u = () => S.upd / 100;
+  const taken = () => (1 + (1 - u()) * 1.2) * (S.upd < 10 ? 1.3 : 1);           // weaker defenses as the update drains
+  const stats = () => ({                              // weaker weapon as the update drains
+    dmg: 10 * (1 + 0.3 * S.up.dmg) * (0.5 + 0.5 * u()),
+    cd: 0.3 * Math.pow(0.88, S.up.rate) / (0.6 + 0.4 * u()),
+    n: 1 + S.up.multi, pierce: S.up.pierce });
+
+  function reset() {
+    S = { stat:{ virus:0, malware:0, hacker:0, ransom:0, phish:0 }, seen:{}, vuln:false, crit:false, tip:'', px:CX, py:CY, mx:CX, my:CY-100, climb:0, t:0, level:1, kills:0, score:0, coins:0, upd:100, hp:100, aim:-Math.PI/2, cd:0, want:0,
+      ox:0, oy:0, vx:0, vy:0, kick:0, inv:0, shake:0, paused:false,
+      b:[], e:[], eb:[], c:[], pk:[], pt:[], tx:[],
+      spawn:1, ringT:6, pkT:8, banner:2.2, bannerText:'Level 1',
+      up:{ dmg:0, rate:0, multi:0, pierce:1 } };
+  }
+
+  /* ---------- enemies: spawn all around the core ---------- */
+  function makeEnemy(type, ang) {
+    const L = S.level, d = 470;
+    const e = { type, x:S.px + Math.cos(ang)*d, y:S.py + Math.sin(ang)*d, ph:rnd(0, 6), dir:Math.random()<.5?-1:1, fl:0, sh:rnd(.8, 1.6) };
+    if (type === 'virus')   Object.assign(e, { hp:4 + L*1.5,  r:14, sp:55 + L*7, coin:1, pts:10, col:COL.amber, dmg:10 });
+    if (type === 'malware') Object.assign(e, { hp:12 + L*3,   r:17, sp:45 + L*5, coin:3, pts:25, col:COL.violet, dmg:14 });
+    if (type === 'hacker')  Object.assign(e, { hp:24 + L*5,   r:20, sp:50 + L*3, coin:8, pts:60, col:COL.red, dmg:0 });
+    if (type === 'ransom')  Object.assign(e, { hp:20 + L*4,   r:18, sp:40 + L*3, coin:6, pts:50, col:'#ff7a30', dmg:18 });
+    e.mhp = e.hp; S.e.push(e);
+    if (!S.seen[type]) { S.seen[type] = 1; log(SEEN[type], type === 'virus' ? 'i' : 'a'); }
+  }
+  function pickType() {
+    const L = S.level, r = Math.random();
+    if (L >= 4 && Math.random() < 0.06 && !locked()) return 'ransom';
+    if (L >= 3 && r < 0.14 + L*0.01) return 'hacker';
+    if (L >= 2 && r < 0.5) return 'malware';
+    return 'virus';
+  }
+  function ring() {                                   // evenly spaced circle of threats
+    const n = 6 + S.level, off = rnd(0, 6.28);
+    for (let i = 0; i < n; i++) makeEnemy(S.level >= 2 && i % 3 === 0 ? 'malware' : 'virus', off + i * 6.283 / n);
+    S.tx.push({ x:S.px, y:S.py-90, t:'Incoming wave!', col:COL.red, l:1.4 }); log('[WARN] botnet wave inbound: ' + n + ' hosts', 'w');
+  }
+
+  /* ---------- shooting with recoil ---------- */
+  function shoot() {
+    const st = stats(), a0 = S.aim;
+    for (let i = 0; i < st.n; i++) {
+      const a = a0 + (i - (st.n-1)/2) * 0.14 + rnd(-0.03, 0.03);
+      S.b.push({ x:S.px+S.ox+Math.cos(a0)*30, y:S.py+S.oy+Math.sin(a0)*30, vx:Math.cos(a)*850, vy:Math.sin(a)*850, d:st.dmg, p:st.pierce, hit:[] });
+    }
+    S.cd = st.cd; S.kick = 1; burst(S.px+S.ox+Math.cos(a0)*34, S.py+S.oy+Math.sin(a0)*34, COL.cyan, 4); S.shake = Math.max(S.shake, 0.07);
+    S.vx -= Math.cos(a0) * 260; S.vy -= Math.sin(a0) * 260;     // push the turret backwards
+    S.climb += rnd(-0.05, 0.05) * st.n;                            // muzzle climb
+  }
+
+  /* ---------- fx ---------- */
+  function burst(x, y, col, n = 12) {
+    for (let i = 0; i < n; i++) { const a = rnd(0, 6.28), s = rnd(40, 220);
+      S.pt.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, l:rnd(.3,.7), m:.7, col }); }
+  }
+  const float = (x, y, t, col) => S.tx.push({ x, y, t, col, l:1 });
+  function hurt(n) { if (S.inv > 0) return; S.hp -= n * taken(); S.shake = 0.25; S.inv = 0.2; }
+
+  function kill(e, ram) {
+    S.score += e.pts * S.level; S.kills++; burst(e.x, e.y, e.col, 16); S.stat[e.type]++;
+    if (e.type === 'ransom') log('[OK] ransomware neutralized: shop decrypted', 'o');
+    if (!ram) for (let i = 0; i < e.coin; i++) { const a = rnd(0, 6.28), s = rnd(60, 160);
+      S.c.push({ x:e.x, y:e.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, age:0 }); }
+    if (S.kills >= need()) levelUp();
+  }
+  function levelUp() {
+    S.level++; S.kills = 0; S.upd = Math.min(100, S.upd + 10); log('[OK] level ' + (S.level-1) + ' secured', 'o');
+    S.eb.length = 0; S.e.forEach(e => { if (e.type !== 'ransom') burst(e.x, e.y, e.col, 6); }); S.e = S.e.filter(e => e.type === 'ransom');
+    S.bannerText = 'Level ' + S.level; S.banner = 2; S.ringT = 5;
+    openShop('Level ' + (S.level-1) + ' cleared');
+  }
+
+  /* ---------- update ---------- */
+  function update(dt) {
+    S.t += dt;
+    S.upd = Math.max(0, S.upd - (2 + S.level * 0.45) * dt);
+    if (!S.vuln && S.upd < 25) { S.vuln = true; log('[WARN] system unpatched: threats move faster', 'w'); } else if (S.vuln && S.upd >= 25) S.vuln = false;
+    if (!S.crit && S.upd < 10) { S.crit = true; log('[CRIT] defenses failing: damage taken +30%', 'a'); } else if (S.crit && S.upd >= 10) S.crit = false;
+    ['banner','shake','inv','want'].forEach(k => { if (S[k] > 0) S[k] -= dt; });
+    S.kick = Math.max(0, S.kick - dt * 8);
+    // movement (WASD / arrow keys)
+    let mx = (keys.d||keys.arrowright?1:0) - (keys.a||keys.arrowleft?1:0), my = (keys.s||keys.arrowdown?1:0) - (keys.w||keys.arrowup?1:0);
+    if (mx && my) { mx *= 0.7071; my *= 0.7071; }
+    S.px = Math.max(26, Math.min(W-26, S.px + mx*SPEED*dt)); S.py = Math.max(26, Math.min(H-26, S.py + my*SPEED*dt));
+    S.climb *= Math.pow(0.02, dt);
+    S.aim = Math.atan2(S.my - (S.py + S.oy), S.mx - (S.px + S.ox)) + S.climb;
+    // recoil spring: turret is pushed back, then snaps to the centre
+    S.ox += S.vx*dt; S.oy += S.vy*dt;
+    S.vx += (-S.ox*400 - S.vx*16)*dt; S.vy += (-S.oy*400 - S.vy*16)*dt;
+
+    S.cd -= dt;
+    if (S.want > 0 && S.cd <= 0) { shoot(); S.want = 0; }
+
+    // spawns
+    S.spawn -= dt;
+    if (S.spawn <= 0 && S.e.length < 10 + S.level*2) { makeEnemy(pickType(), rnd(0, 6.28)); S.spawn = Math.max(0.8, 2.3 - S.level*0.1) * rnd(.8, 1.3); }
+    S.ringT -= dt; if (S.ringT <= 0) { ring(); S.ringT = 24; }
+    S.pkT -= dt;
+    if (S.pkT <= 0) { const fk = S.level >= 2 && Math.random() < 0.4; S.pk.push({ a:rnd(0, 6.28), r:rnd(150, 250), w:rnd(.35, .6)*(Math.random()<.5?-1:1), life:12, fake:fk, label:fk ? FAKE[Math.floor(Math.random()*FAKE.length)] : 'UPDATE' }); S.pkT = rnd(11, 16); }
+
+    // bullets
+    S.b.forEach(b => { b.x += b.vx*dt; b.y += b.vy*dt; });
+
+    // update packs orbit the core; shoot them to download
+    S.pk.forEach(k => { k.a += k.w*dt; k.life -= dt; k.x = CX + Math.cos(k.a)*k.r; k.y = CY + Math.sin(k.a)*k.r;
+      for (const b of S.b) if (!b.dead && Math.hypot(b.x-k.x, b.y-k.y) < 20) { b.dead = true; k.dead = true;
+        if (k.fake) { S.upd = Math.max(0, S.upd - 20); S.stat.phish++; float(k.x, k.y, 'PHISHING! -20', COL.red); burst(k.x, k.y, COL.red, 14);
+          log('[ALERT] phishing link clicked: malware downloaded', 'a');
+          for (let i = 0; i < 3; i++) { makeEnemy('virus', 0); const v = S.e[S.e.length-1]; v.x = k.x + rnd(-24, 24); v.y = k.y + rnd(-24, 24); } }
+        else { S.upd = Math.min(100, S.upd + 30); float(k.x, k.y, '+30 update', COL.cyan); burst(k.x, k.y, COL.cyan, 12); log('[OK] security update installed', 'o'); }
+        break; } });
+    S.pk = S.pk.filter(k => !k.dead && k.life > 0);
+
+    // enemies
+    const px = S.px + S.ox, py = S.py + S.oy, vs = S.upd < 25 ? 1.25 : 1;
+    for (const e of S.e) {
+      if (e.fl > 0) e.fl -= dt;
+      const ang = Math.atan2(py - e.y, px - e.x), d = Math.hypot(px - e.x, py - e.y);
+      if (e.type === 'virus' || e.type === 'ransom') { e.x += Math.cos(ang)*e.sp*vs*dt; e.y += Math.sin(ang)*e.sp*vs*dt; }
+      else if (e.type === 'malware') { const a = ang + Math.sin(S.t*3 + e.ph)*0.9; e.x += Math.cos(a)*e.sp*vs*dt; e.y += Math.sin(a)*e.sp*vs*dt; }
+      else {
+        const a = d > 230 ? ang : ang + e.dir*Math.PI/2;       // approach, then circle the core
+        e.x += Math.cos(a)*e.sp*vs*dt; e.y += Math.sin(a)*e.sp*vs*dt;
+        e.sh -= dt;
+        if (d < 340 && e.sh <= 0) { e.sh = Math.max(0.9, 2 - S.level*0.08); const v = 170 + S.level*6;
+          S.eb.push({ x:e.x, y:e.y, vx:Math.cos(ang)*v, vy:Math.sin(ang)*v }); }
+      }
+      for (const b of S.b) {
+        if (b.dead || b.hit.includes(e)) continue;
+        if (Math.hypot(b.x-e.x, b.y-e.y) < e.r + 4) { b.hit.push(e); e.hp -= b.d; e.fl = 0.08; burst(b.x, b.y, '#fff', 2);
+          if (b.p > 0) b.p--; else b.dead = true; }
+      }
+      if (e.hp <= 0) { e.dead = true; kill(e, false); }
+      else if (e.type !== 'hacker' && d < e.r + 18) { e.dead = true; hurt(e.dmg); burst(px, py, COL.red, 12); log('[ALERT] ' + NAME[e.type] + ' reached the core', 'a'); kill(e, true); }
+    }
+    S.e = S.e.filter(e => !e.dead);
+    S.b = S.b.filter(b => !b.dead && b.x > -30 && b.x < W+30 && b.y > -30 && b.y < H+30);
+
+    // enemy shots
+    for (const b of S.eb) { b.x += b.vx*dt; b.y += b.vy*dt;
+      if (Math.hypot(b.x-px, b.y-py) < 18) { b.dead = true; hurt(8); } }
+    S.eb = S.eb.filter(b => !b.dead && b.x > -30 && b.x < W+30 && b.y > -30 && b.y < H+30);
+
+    // coins scatter, then get pulled into the core
+    for (const c of S.c) { c.age += dt;
+      if (c.age < 0.35) { c.x += c.vx*dt; c.y += c.vy*dt; c.vx *= 0.95; c.vy *= 0.95; }
+      else { const a = Math.atan2(py - c.y, px - c.x), s = 140 + (c.age - 0.35) * 500; c.x += Math.cos(a)*s*dt; c.y += Math.sin(a)*s*dt; }
+      if (Math.hypot(c.x-px, c.y-py) < 22) { c.dead = true; S.coins++; } }
+    S.c = S.c.filter(c => !c.dead);
+
+    S.pt.forEach(q => { q.x += q.vx*dt; q.y += q.vy*dt; q.l -= dt; }); S.pt = S.pt.filter(q => q.l > 0);
+    S.tx.forEach(t => { t.y -= 30*dt; t.l -= dt; }); S.tx = S.tx.filter(t => t.l > 0);
+    if (S.hp <= 0) gameOver();
+  }
+
+  /* ---------- drawing ---------- */
+  function drawEnemy(e) {
+    const f = e.fl > 0;
+    if (spr(e.type, e.x, e.y, 0, f)) {} else {
+      ctx.save(); ctx.translate(e.x, e.y);
+      ctx.fillStyle = ctx.strokeStyle = f ? '#fff' : e.col; ctx.lineWidth = 2;
+      if (e.type === 'virus') {
+        ctx.beginPath(); ctx.arc(0, 0, e.r*0.65, 0, 6.28); ctx.fill();
+        for (let i = 0; i < 8; i++) { const a = i*Math.PI/4 + S.t*1.5;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a)*e.r*0.6, Math.sin(a)*e.r*0.6); ctx.lineTo(Math.cos(a)*e.r*1.1, Math.sin(a)*e.r*1.1); ctx.stroke(); }
+      } else if (e.type === 'malware') {
+        ctx.beginPath(); ctx.moveTo(0,-e.r); ctx.lineTo(e.r,0); ctx.lineTo(0,e.r); ctx.lineTo(-e.r,0); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-6,-6); ctx.lineTo(6,6); ctx.moveTo(6,-6); ctx.lineTo(-6,6); ctx.stroke();
+      } else if (e.type === 'ransom') {
+        ctx.fillRect(-13, -4, 26, 20); ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, -4, 8, Math.PI, 0); ctx.stroke();
+        ctx.fillStyle = '#0a0f24'; ctx.fillRect(-2, 3, 4, 8);
+      } else {
+        ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i*Math.PI/3 + Math.PI/6; ctx.lineTo(Math.cos(a)*e.r, Math.sin(a)*e.r); } ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0a0f24'; ctx.fillRect(-11, -3, 8, 5); ctx.fillRect(3, -3, 8, 5);
+      }
+      ctx.restore();
+    }
+    if (e.hp < e.mhp) { ctx.fillStyle = '#0a0f24'; ctx.fillRect(e.x-14, e.y-e.r-9, 28, 4); ctx.fillStyle = e.col; ctx.fillRect(e.x-14, e.y-e.r-9, 28*Math.max(0, e.hp/e.mhp), 4); }
+  }
+
+  function draw() {
+    ctx.save();
+    if (S.shake > 0) ctx.translate(rnd(-4, 4), rnd(-4, 4));
+    ctx.fillStyle = '#0a0f24'; ctx.fillRect(-10, -10, W+20, H+20);
+    if (IMG.bg) { ctx.imageSmoothingEnabled = false; ctx.drawImage(IMG.bg, 0, 0, W, H); }
+    else {                                              // radar rings around the core
+      ctx.strokeStyle = 'rgba(77,226,255,.08)'; ctx.lineWidth = 1;
+      for (let r = 80; r < 460; r += 80) { ctx.beginPath(); ctx.arc(CX, CY, r, 0, 6.28); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX, H); ctx.moveTo(0, CY); ctx.lineTo(W, CY); ctx.stroke();
+    }
+    const px = S.px + S.ox, py = S.py + S.oy;
+
+    // aim line
+    ctx.strokeStyle = 'rgba(77,226,255,.18)'; ctx.setLineDash([4, 8]);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(S.aim)*600, py + Math.sin(S.aim)*600); ctx.stroke(); ctx.setLineDash([]);
+
+    // coins
+    S.c.forEach(c => { if (!spr('coin', c.x, c.y)) { ctx.fillStyle = COL.gold; ctx.beginPath(); ctx.arc(c.x, c.y, 6, 0, 6.28); ctx.fill();
+      ctx.fillStyle = '#b8901a'; ctx.fillRect(c.x-1, c.y-3, 2, 6); } });
+
+    // update packs
+    S.pk.forEach(k => {
+      if (k.life < 3 && Math.floor(S.t*8) % 2) return;
+      ctx.font = 'bold 10px "Courier New",monospace'; ctx.textAlign = 'center'; ctx.fillStyle = COL.cyan; ctx.fillText(k.label, k.x, k.y + 25);
+      if (spr('pack', k.x, k.y)) return;
+      ctx.save(); ctx.translate(k.x, k.y); ctx.shadowColor = COL.cyan; ctx.shadowBlur = 14;
+      ctx.fillStyle = k.fake ? '#52e8d8' : COL.cyan; ctx.fillRect(-12, -12, 24, 24); ctx.shadowBlur = 0; ctx.fillStyle = '#0a0f24';
+      ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(8,1); ctx.lineTo(3,1); ctx.lineTo(3,8); ctx.lineTo(-3,8); ctx.lineTo(-3,1); ctx.lineTo(-8,1); ctx.closePath(); ctx.fill(); ctx.restore(); });
+
+    S.e.forEach(drawEnemy);
+
+    // bullets
+    S.b.forEach(b => { ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx)); ctx.fillStyle = COL.cyan;
+      const h = 3 + b.d*0.3; ctx.fillRect(-9, -h/2, 18, h); ctx.restore(); });
+    ctx.fillStyle = COL.red; S.eb.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, 6.28); ctx.fill(); });
+
+    // turret (barrel retracts with recoil)
+    if (!(S.inv > 0 && Math.floor(S.t*30) % 2)) {
+      ctx.save(); ctx.translate(px, py);
+      if (u() > 0.25) { ctx.strokeStyle = `rgba(77,226,255,${0.15 + 0.45*u()})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 32, 0, 6.28); ctx.stroke(); }
+      const low = u() <= 0.25;
+      if (IMG.player) { ctx.restore(); spr('player', px - Math.cos(S.aim)*S.kick*6, py - Math.sin(S.aim)*S.kick*6, S.aim + Math.PI/2); }
+      else {
+        ctx.rotate(S.aim);
+        ctx.fillStyle = low ? '#8a3a4a' : '#2a3a73'; ctx.fillRect(4 - S.kick*8, -6, 30, 12);       // barrel
+        ctx.fillStyle = low ? COL.red : COL.cyan; ctx.fillRect(30 - S.kick*8, -4, 6, 8);
+        ctx.beginPath(); ctx.arc(0, 0, 18, 0, 6.28); ctx.fill();
+        ctx.fillStyle = '#0a0f24'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 6.28); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    S.pt.forEach(q => { ctx.globalAlpha = Math.max(0, q.l/q.m); ctx.fillStyle = q.col; ctx.fillRect(q.x, q.y, 3, 3); }); ctx.globalAlpha = 1;
+    ctx.font = 'bold 14px "Trebuchet MS",sans-serif'; ctx.textAlign = 'center';
+    S.tx.forEach(t => { ctx.globalAlpha = Math.max(0, t.l); ctx.fillStyle = t.col; ctx.fillText(t.t, t.x, t.y); }); ctx.globalAlpha = 1;
+    if (S.banner > 0 && !S.paused) { ctx.globalAlpha = Math.min(1, S.banner); ctx.font = 'bold 40px "Trebuchet MS",sans-serif'; ctx.fillStyle = COL.ink;
+      ctx.fillText(S.bannerText, W/2, H*0.3); ctx.font = '15px "Trebuchet MS",sans-serif'; ctx.fillStyle = COL.cyan;
+      ctx.fillText('Enemies are faster and stronger', W/2, H*0.3 + 28); ctx.globalAlpha = 1; }
+    ctx.restore();
+  }
+
+  function hud() {
+    $('lvl').textContent = S.level; $('score').textContent = S.score; $('coinsB').textContent = S.coins;
+    $('kills').textContent = S.kills + '/' + need();
+    const hp = Math.max(0, Math.round(S.hp)), up = Math.round(S.upd);
+    $('hpTxt').textContent = hp + '%'; $('hpFill').style.width = hp + '%';
+    $('updTxt').textContent = up + '%'; $('updFill').style.width = up + '%';
+    $('updBox').classList.toggle('low', up < 25); $('stage').classList.toggle('glitch', up < 10);
+    $('shopBtn').textContent = locked() ? 'Shop locked' : 'Upgrades (B)';
+  }
+
+  /* ---------- upgrade shop ---------- */
+  const SHOP = [
+    { id:'dmg',    name:'Damage',      desc:'+30% damage per shot',      base:12, max:8 },
+    { id:'rate',   name:'Fire rate',   desc:'12% faster between shots',  base:15, max:8 },
+    { id:'multi',  name:'Multi-shot',  desc:'+1 bullet per shot',        base:30, max:4 },
+    { id:'pierce', name:'Piercing',    desc:'Bullets pass through +1 enemy', base:25, max:3 },
+    { id:'fix',    name:'Restore backup', desc:'+40 system integrity', base:30, fixed:true },
+    { id:'upd',    name:'Emergency patch', desc:'+50 security update', base:15, fixed:true } ];
+  const costOf = it => it.fixed ? it.base : Math.round(it.base * (1 + S.up[it.id] * 0.8));
+  function openShop(title) {
+    S.tip = TIPS[Math.floor(Math.random()*TIPS.length)]; S.paused = true; $('shopTitle').textContent = title || 'Upgrades'; renderShop(); $('shop').classList.remove('hidden');
+    $('goBtn').textContent = 'Start level ' + S.level; $('goBtn').focus();
+  }
+  function closeShop() { $('shop').classList.add('hidden'); S.paused = false; last = performance.now(); }
+  function renderShop() {
+    $('tip').textContent = locked() ? '[ALERT] Shop encrypted by ransomware. Destroy it to unlock upgrades.' : 'Tip: ' + S.tip; $('tip').style.color = locked() ? 'var(--red)' : '';
+    $('shopCoins').textContent = S.coins; const box = $('items'); box.innerHTML = '';
+    SHOP.forEach(it => {
+      const lv = it.fixed ? '' : ` (Lv ${S.up[it.id]}/${it.max})`, maxed = !it.fixed && S.up[it.id] >= it.max, c = costOf(it);
+      const b = document.createElement('button'); b.className = 'item';
+      b.innerHTML = `<b>${it.name}${lv}</b><small>${it.desc}</small><span class="cost">${maxed ? 'Maxed' : c + ' coins'}</span>`;
+      b.disabled = maxed || S.coins < c || locked();
+      b.onclick = () => { S.coins -= c;
+        if (it.id === 'fix') S.hp = Math.min(100, S.hp + 40); else if (it.id === 'upd') S.upd = Math.min(100, S.upd + 50); else S.up[it.id]++;
+        renderShop(); hud(); };
+      box.appendChild(b);
+    });
+  }
+
+  /* ---------- loop / state ---------- */
+  function frame(ts) {
+    if (!running) return;
+    const dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+    if (!S.paused) update(dt);
+    if (running) { draw(); hud(); requestAnimationFrame(frame); }
+  }
+  function start() {
+    reset(); ['start','over','shop'].forEach(i => $(i).classList.add('hidden'));
+    logEl.innerHTML = ''; log('[INFO] firewall online. Keep your system patched.', 'i');
+    running = true; last = performance.now(); requestAnimationFrame(frame);
+  }
+  function gameOver() {
+    running = false; draw(); hud();
+    if (S.score > best) { best = S.score; try { localStorage.setItem('cyberDefenderBest', best); } catch (e) {} }
+    const st = S.stat; $('report').textContent = 'Threat report: ' + st.virus + ' viruses, ' + st.malware + ' malware, ' + st.hacker + ' intruders, ' + st.ransom + ' ransomware neutralized. Phishing links clicked: ' + st.phish + '.';
+    $('oLvl').textContent = S.level; $('oScore').textContent = S.score; $('oBest').textContent = best;
+    $('over').classList.remove('hidden'); $('againBtn').focus();
+  }
+
+  /* ---------- input: aim with mouse, click to shoot ---------- */
+  function aimAt(e) { const r = cv.getBoundingClientRect();
+    S.mx = (e.clientX - r.left) * W / r.width; S.my = (e.clientY - r.top) * H / r.height; }
+  cv.addEventListener('pointermove', e => { if (running && !S.paused) aimAt(e); });
+  cv.addEventListener('pointerdown', e => { if (!running || S.paused) return; aimAt(e); S.want = 0.15; });   // one click = one shot
+  const keys = {}, SPEED = 230;
+  addEventListener('keyup', e => { keys[e.key.toLowerCase()] = 0; });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = 0; });
+  addEventListener('keydown', e => { const k = e.key.toLowerCase(); keys[k] = 1;
+    if (k.startsWith('arrow') || k === ' ') e.preventDefault();
+    if (!running) return;
+    if (e.key.toLowerCase() === 'b') { S.paused ? closeShop() : openShop('Upgrades'); } });
+  $('shopBtn').addEventListener('click', () => { if (running) S.paused ? closeShop() : openShop('Upgrades'); });
+  $('goBtn').addEventListener('click', closeShop);
+  $('startBtn').addEventListener('click', start);
+  $('againBtn').addEventListener('click', start);
+
+  reset(); draw(); hud();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MFA Puzzle Game</title>
+
+<style>
+body {
+    background: #101e38;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 30px;
+}
+
+.game {
+    background: #1c3458;
+    max-width: 450px;
+    margin: 40px auto;
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 0 20px #3288e8;
+}
+
+h1 {
+    color: #55b9ff;
+}
+
+h3 {
+    color: #8ecfff;
+}
+
+button {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    margin: 12px 0;
+    border: none;
+    border-radius: 10px;
+    background: #3288e8;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #1765bd;
+}
+
+button:disabled {
+    cursor: default;
+    opacity: 0.8;
+}
+
+#feedback {
+    margin: 20px 0;
+    font-weight: bold;
+    line-height: 1.5;
+}
+
+#next {
+    background: #159768;
+}
+
+#next:hover {
+    background: #10734f;
+}
+
+.hidden {
+    display: none;
+}
+
+</style>
+</head>
+
+<body>
+<a href="../" style="position:fixed;top:10px;left:10px;color:#54e6d1;font:14px Arial;">← Arcade</a>
+<div class="game" id="game">
+
+<h1>🔐 MFA PUZZLE</h1>
+
+<p>Solve the puzzles to protect your account!</p>
+
+<h3 id="number">Puzzle 1 of 8</h3>
+
+<h2 id="question">What does MFA stand for?</h2>
+
+<div id="answers"></div>
+
+<p id="feedback" aria-live="polite"></p>
+
+<button id="next" onclick="nextPuzzle()" hidden>
+Next Puzzle →
+</button>
+
+</div>
+
+<script>
+
+const puzzles = [
+
+{
+question: "1. What does MFA stand for?",
+answers: [
+"Multiple File Access",
+"Multifactor Authentication",
+"Main Firewall Access"
+],
+correct: 1,
+fact: "MFA means Multifactor Authentication. It adds extra security to your account!"
+},
+
+{
+question: "2. Which is an example of an MFA method?",
+answers: [
+"An authenticator app",
+"Sharing your password",
+"Using your birthday"
+],
+correct: 0,
+fact: "Authenticator apps provide an additional verification factor."
+},
+
+{
+question: "3. You receive a login approval request you didn't make. What should you do?",
+answers: [
+"Approve it",
+"Ignore the warning",
+"Deny the request"
+],
+correct: 2,
+fact: "Never approve login requests you didn't initiate. Deny them and secure your account."
+},
+
+{
+question: "4. Why is MFA important?",
+answers: [
+"It makes your computer faster",
+"It protects your account if your password is stolen",
+"It deletes viruses automatically"
+],
+correct: 1,
+fact: "MFA makes it harder for hackers to access your account, even if they know your password."
+},
+
+{
+question: "5. Which is something you HAVE?",
+answers: [
+"Your password",
+"Your fingerprint",
+"Your phone"
+],
+correct: 2,
+fact: "A phone or security key is something you have and can use as an authentication factor."
+},
+
+{
+question: "6. Should you share your MFA verification code with someone?",
+answers: [
+"Yes, if they ask nicely",
+"No, never share it",
+"Only with strangers"
+],
+correct: 1,
+fact: "Never share verification codes. Scammers may use them to break into your account."
+},
+
+{
+question: "7. Which is generally the strongest MFA option against phishing?",
+answers: [
+"A FIDO2 security key",
+"A code sent through email",
+"Your pet's name"
+],
+correct: 0,
+fact: "FIDO2 security keys provide phishing-resistant authentication."
+},
+
+{
+question: "8. What should you do if you think someone accessed your account?",
+answers: [
+"Do nothing",
+"Share your password",
+"Change your password and contact your IT team"
+],
+correct: 2,
+fact: "Secure your account immediately, change your password, and report suspicious activity."
+}
+
+];
+
+let current = 0;
+let score = 0;
+let answered = false;
+
+function showPuzzle() {
+
+    answered = false;
+
+    let puzzle = puzzles[current];
+
+    document.getElementById("number").innerText =
+        "Puzzle " + (current + 1) + " of " + puzzles.length;
+
+    document.getElementById("question").innerText =
+        puzzle.question;
+
+    document.getElementById("feedback").innerText = "";
+
+    document.getElementById("next").hidden = true;
+
+    let area = document.getElementById("answers");
+
+    area.innerHTML = "";
+
+    puzzle.answers.forEach((answer, index) => {
+
+        let button = document.createElement("button");
+
+        button.innerText = answer;
+
+        button.onclick = () => checkAnswer(index);
+
+        area.appendChild(button);
+
+    });
+
+}
+
+function checkAnswer(choice) {
+
+    if (answered) return;
+
+    answered = true;
+
+    let puzzle = puzzles[current];
+
+    let buttons = document.querySelectorAll("#answers button");
+
+    if (choice === puzzle.correct) {
+
+        score++;
+
+        document.getElementById("feedback").innerText =
+            "✅ Correct! " + puzzle.fact;
+
+    } else {
+
+        document.getElementById("feedback").innerText =
+            "❌ Not quite! " + puzzle.fact;
+
+    }
+
+    buttons.forEach((button, index) => {
+
+        button.disabled = true;
+
+        if (index === puzzle.correct) {
+            button.style.background = "#159768";
+        }
+
+        if (index === choice && choice !== puzzle.correct) {
+            button.style.background = "#b83b4b";
+        }
+
+    });
+
+    document.getElementById("next").hidden = false;
+
+    if (current === puzzles.length - 1) {
+        document.getElementById("next").innerText =
+            "See Final Score 🏆";
+    }
+
+}
+
+function nextPuzzle() {
+
+    current++;
+
+    if (current < puzzles.length) {
+
+        showPuzzle();
+
+    } else {
+
+        showResults();
+
+    }
+
+}
+
+function showResults() {
+
+    let message = "";
+
+    if (score === 8) {
+        message = "Perfect score! You are an MFA expert! 🏆";
+    } else if (score >= 5) {
+        message = "Great job! You know how to protect your accounts! 🛡️";
+    } else {
+        message = "Good try! Keep practicing your cybersecurity skills! 🔐";
+    }
+
+    document.getElementById("game").innerHTML = `
+
+        <h1>🎉 MISSION COMPLETE!</h1>
+
+        <h2>Your Score: ${score}/8</h2>
+
+        <p>${message}</p>
+
+        <p>Remember: Always use multifactor authentication
+        to keep your accounts safe!</p>
+
+        <button onclick="location.reload()">
+            Play Again 🔄
+        </button>
+
+    `;
+
+}
+
+showPuzzle();
+
+</script>
+
+</body>
+</html>
